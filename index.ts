@@ -14,6 +14,12 @@ import {
 } from "./runtime.js";
 import { getProjectContext, type ProjectContext } from "./project.js";
 import {
+	formatDoctorReport,
+	formatSmokeTestReport,
+	runDoctor,
+	runSmokeTest,
+} from "./operations.js";
+import {
 	extractLastAssistantText,
 	extractText,
 	serializeToolInput,
@@ -367,6 +373,41 @@ export default function claudeMemPiExtension(pi: ExtensionAPI): void {
 					`Content session: ${state?.contentSessionId ?? "none"}`,
 				].join("\n"),
 				status.active ? "info" : "warning",
+			);
+		},
+	});
+
+	pi.registerCommand("claude-mem-doctor", {
+		description: "Run read-only Claude-mem bridge diagnostics",
+		handler: async (_args, ctx) => {
+			const report = await runDoctor({
+				mode: resolutionMode(ctx),
+				worker: selectedWorker,
+				chooseWorker: (names) => chooseWorker(ctx, names),
+			});
+			ctx.ui.notify(formatDoctorReport(report), report.ok ? "info" : "warning");
+		},
+	});
+
+	pi.registerCommand("claude-mem-smoke-test", {
+		description: "Run a confirmed permanent Claude-mem lifecycle smoke test",
+		handler: async (_args, ctx) => {
+			const confirmed = await ctx.ui.confirm(
+				"Run Claude-mem smoke test?",
+				"This writes permanent records isolated under __pi_bridge_smoke__. Pi Bridge cannot delete them.",
+			);
+			if (!confirmed) {
+				ctx.ui.notify("Smoke test cancelled; no worker writes were sent.", "info");
+				return;
+			}
+			const report = await runSmokeTest({
+				mode: resolutionMode(ctx),
+				worker: selectedWorker,
+				chooseWorker: (names) => chooseWorker(ctx, names),
+			});
+			ctx.ui.notify(
+				formatSmokeTestReport(report),
+				report.ok ? "info" : "warning",
 			);
 		},
 	});

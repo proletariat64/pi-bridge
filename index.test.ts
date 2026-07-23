@@ -27,6 +27,7 @@ function createHarness(
 		mode?: "tui" | "rpc" | "json" | "print";
 		hasUI?: boolean;
 		cwd?: string;
+		confirmation?: boolean;
 	} = {},
 ) {
 	const home =
@@ -49,6 +50,8 @@ function createHarness(
 	const statuses: Array<string | undefined> = [];
 	const notifications: string[] = [];
 	const selections: string[][] = [];
+	const confirmations: Array<{ title: string; message: string }> = [];
+	let confirmation = options.confirmation ?? false;
 	let sessionFile = "/sessions/current.jsonl";
 	const pi = {
 		on(name: string, handler: Handler) {
@@ -66,6 +69,10 @@ function createHarness(
 	const ui: Record<string, unknown> = {
 		setStatus: (_id: string, value: string | undefined) => statuses.push(value),
 		notify: (message: string) => notifications.push(message),
+		confirm: async (title: string, message: string) => {
+			confirmations.push({ title, message });
+			return confirmation;
+		},
 	};
 	if (options.selection !== undefined) {
 		ui.select = async (_title: string, workerNames: string[]) => {
@@ -98,6 +105,7 @@ function createHarness(
 	return {
 		branch,
 		commands,
+		confirmations,
 		configPath,
 		ctx,
 		entries,
@@ -111,6 +119,9 @@ function createHarness(
 			rmSync(home, { recursive: true, force: true });
 		},
 		selections,
+		setConfirmation: (value: boolean) => {
+			confirmation = value;
+		},
 		setSessionFile: (value: string) => {
 			sessionFile = value;
 		},
@@ -776,6 +787,56 @@ describe("Pi bridge lifecycle", () => {
 			"requires Claude-mem >= 13.11.0",
 		);
 		expect(healthChecks).toBe(2);
+	});
+
+	it("shares read-only doctor and confirmed smoke operations with Pi commands", async () => {
+		const worker = mockWorker({ context: "" });
+		const harness = createHarness(worker.fetchImpl, {
+			config: {
+				version: 1,
+				activeWorker: "",
+				workers: { default: {} },
+			},
+		});
+		restore = harness.restore;
+		mkdirSync(path.join(harness.home, ".claude-mem"), { recursive: true });
+		writeFileSync(
+			path.join(harness.home, ".pi", "agent", "settings.json"),
+			JSON.stringify({
+				packages: ["git:github.com/proletariat64/pi-bridge"],
+			}),
+		);
+
+		expect(harness.commands.has("claude-mem-doctor")).toBe(true);
+		expect(harness.commands.has("claude-mem-smoke-test")).toBe(true);
+		await harness.commands.get("claude-mem-doctor").handler("", harness.ctx);
+		expect(harness.notifications.at(-1)).toContain("Doctor: pass");
+		const afterDoctor = worker.requests.length;
+
+		await harness.commands
+			.get("claude-mem-smoke-test")
+			.handler("", harness.ctx);
+		expect(harness.confirmations).toHaveLength(1);
+		expect(harness.notifications.at(-1)).toContain("Smoke test cancelled");
+		expect(worker.requests).toHaveLength(afterDoctor);
+
+		harness.setConfirmation(true);
+		await harness.commands
+			.get("claude-mem-smoke-test")
+			.handler("", harness.ctx);
+		expect(harness.confirmations).toHaveLength(2);
+		expect(harness.notifications.at(-1)).toContain("Smoke test: pass");
+		expect(
+			worker.requests.slice(afterDoctor).map((request) =>
+				new URL(request.url).pathname,
+			),
+		).toEqual([
+			"/api/health",
+			"/api/sessions/init",
+			"/api/context/inject",
+			"/api/sessions/observations",
+			"/api/sessions/summarize",
+		]);
 	});
 
 	it("does not summarize ahead of observations that miss the shutdown deadline", async () => {
