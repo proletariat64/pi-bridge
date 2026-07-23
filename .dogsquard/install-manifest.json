@@ -1,0 +1,286 @@
+{
+  "schema_version": "1",
+  "installed_at": "2026-07-23T12:31:31.462481",
+  "dogsquard_source": {
+    "path": "/home/ubuntu/dev/dogsquard",
+    "git_commit": "1d3a235849c3544376a0c99553a8eadcb3144d03"
+  },
+  "target": {
+    "path": "/home/ubuntu/dev/pi-bridge",
+    "git_remote_origin": "https://github.com/proletariat64/pi-bridge.git",
+    "git_branch": "main"
+  },
+  "project_type": "docs-only",
+  "modules": [
+    "governance",
+    "pr-quality",
+    "ai-pr-review"
+  ],
+  "options": {
+    "force": false,
+    "run_checks": true,
+    "commit_push": true
+  },
+  "ai_review": {
+    "configured": false,
+    "enabled": false,
+    "engine": null,
+    "qoder_models": [],
+    "apply_github_vars": false
+  },
+  "files": [
+    {
+      "path": "docs/01_brd/brd-20260530-project-operating-model.md",
+      "module": "bootstrap",
+      "action": "created",
+      "source": "docs/01_brd/brd-20260530-project-operating-model.md",
+      "sha256_before": null,
+      "sha256_after": "3875fd0681c3cfb3e2efb532280b88333864f2cfa3075d28a5f0694d8fd0afd7",
+      "backup_path": null
+    },
+    {
+      "path": "docs/02_prd/prd-20260530-document-governance.md",
+      "module": "bootstrap",
+      "action": "created",
+      "source": "docs/02_prd/prd-20260530-document-governance.md",
+      "sha256_before": null,
+      "sha256_after": "16ad1b19dd8fcf17eec73a88c1dab462f9f0e07e4f9b7a732ea53d0591da9baa",
+      "backup_path": null
+    },
+    {
+      "path": "docs/03_bdd/bdd-20260530-document-governance.md",
+      "module": "bootstrap",
+      "action": "created",
+      "source": "docs/03_bdd/bdd-20260530-document-governance.md",
+      "sha256_before": null,
+      "sha256_after": "8ce1eb595ad7e2e4291add13fee5925daf400727927018aa74380c5c2b06ff86",
+      "backup_path": null
+    },
+    {
+      "path": "docs/04_adr/0001-use-github-actions-as-ci-authority.md",
+      "module": "bootstrap",
+      "action": "created",
+      "source": "docs/04_adr/0001-use-github-actions-as-ci-authority.md",
+      "sha256_before": null,
+      "sha256_after": "5b5e629d4e458230abe03765b4b56c6a77bd1d216d7fe2d93ba86ab7f8edde8c",
+      "backup_path": null
+    },
+    {
+      "path": "docs/05_design/design-20260530-agent-charter.md",
+      "module": "bootstrap",
+      "action": "created",
+      "source": "docs/05_design/design-20260530-agent-charter.md",
+      "sha256_before": null,
+      "sha256_after": "7841a6331bc733c021b86ac1a3bf443afce18ebb840be979dce7e1efb3bd0acb",
+      "backup_path": null
+    },
+    {
+      "path": "scripts/agent-doc-review.sh",
+      "module": "bootstrap",
+      "action": "created",
+      "source": "scripts/agent-doc-review.sh",
+      "sha256_before": null,
+      "sha256_after": "13da99d7c7bf45675589d397904d66f47706068f49f05b3c4bde714f0fe02122",
+      "backup_path": null
+    },
+    {
+      "path": "scripts/doc-check-local.sh",
+      "module": "bootstrap",
+      "action": "created",
+      "source": "scripts/doc-check-local.sh",
+      "sha256_before": null,
+      "sha256_after": "a13a717b841e4aabe03c8c8f71e65f71bf0feb7b70b44fa98f37774bdb473b5e",
+      "backup_path": null
+    },
+    {
+      "path": "scripts/doc-guard.sh",
+      "module": "bootstrap",
+      "action": "created",
+      "source": "scripts/doc-guard.sh",
+      "sha256_before": null,
+      "sha256_after": "d1a0cf344973b8bfa1decf851af718d742bda57ba9ab982203f65586e43dba1b",
+      "backup_path": null
+    },
+    {
+      "path": "scripts/fake-implementation-guard.sh",
+      "module": "bootstrap",
+      "action": "created",
+      "source": "scripts/fake-implementation-guard.sh",
+      "sha256_before": null,
+      "sha256_after": "9409b1ed7181fd59944170e264444f3643afcbce3000320f12353b0405909b6d",
+      "backup_path": null
+    },
+    {
+      "path": "scripts/test-fake-implementation-guard.sh",
+      "module": "bootstrap",
+      "action": "created",
+      "source": "scripts/test-fake-implementation-guard.sh",
+      "sha256_before": null,
+      "sha256_after": "5071f20f7fac52da03db2dddb51c5b35236f2bdeb309dbf99ef559a52fb98524",
+      "backup_path": null
+    },
+    {
+      "path": "scripts/lib-doc-rules.sh",
+      "module": "bootstrap",
+      "action": "created",
+      "source": "scripts/lib-doc-rules.sh",
+      "sha256_before": null,
+      "sha256_after": "1d9aa1265819eca72f39ebb68311382ad4effab513c16ee21ca5633ddf8eb921",
+      "backup_path": null
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "module": "bootstrap",
+      "action": "created",
+      "source": ".github/pull_request_template.md",
+      "sha256_before": null,
+      "sha256_after": "704f1cac00ecdc9bc8b2856395b0a4b01527b9ca0e3a93158aa7fbf0679f2645",
+      "backup_path": null
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/feature.yml",
+      "module": "bootstrap",
+      "action": "created",
+      "source": ".github/ISSUE_TEMPLATE/feature.yml",
+      "sha256_before": null,
+      "sha256_after": "a894fed0160d5a2072ffacd1ef4486972f6ce42c442abbad68cf1a6ee3b75bbc",
+      "backup_path": null
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/bug.yml",
+      "module": "bootstrap",
+      "action": "created",
+      "source": ".github/ISSUE_TEMPLATE/bug.yml",
+      "sha256_before": null,
+      "sha256_after": "cdd3a1b1153f8602ed6b30b4597083e63b9cbeda269896e8417f26d8b1f69e5c",
+      "backup_path": null
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/task.yml",
+      "module": "bootstrap",
+      "action": "created",
+      "source": ".github/ISSUE_TEMPLATE/task.yml",
+      "sha256_before": null,
+      "sha256_after": "82411a257e627d267ed460580d3debb38709351d7646039b78c89c446d9f3b9c",
+      "backup_path": null
+    },
+    {
+      "path": "CHANGELOG.md",
+      "module": "bootstrap",
+      "action": "created",
+      "source": null,
+      "sha256_before": null,
+      "sha256_after": "5ea3b7c2879773d45b9bb52678c571e343f5fcb9ce0b7aedc7511d09e99e23f7",
+      "backup_path": null
+    },
+    {
+      "path": "Makefile",
+      "module": "bootstrap",
+      "action": "created",
+      "source": null,
+      "sha256_before": null,
+      "sha256_after": "5fd135edcf1de17108e2d623e34a2c06e742c21d84705350004925eaf63d2f34",
+      "backup_path": null
+    },
+    {
+      "path": ".github/workflows/pr-quality.yml",
+      "module": "bootstrap",
+      "action": "created",
+      "source": null,
+      "sha256_before": null,
+      "sha256_after": "90376bb3be4ac17ec951d474992374b308532cbabee0c547f406fd49e293b10a",
+      "backup_path": null
+    },
+    {
+      "path": ".github/workflows/ai-pr-review.yml",
+      "module": "ai-pr-review",
+      "action": "created",
+      "source": ".github/workflows/ai-pr-review.yml",
+      "sha256_before": null,
+      "sha256_after": "d3a29897515f4b43657ab647a2ac65300914eed358a51224ec21ae2e799ed06f",
+      "backup_path": null
+    },
+    {
+      "path": ".github/workflows/scripts/ai_review_pr.py",
+      "module": "ai-pr-review",
+      "action": "created",
+      "source": ".github/workflows/scripts/ai_review_pr.py",
+      "sha256_before": null,
+      "sha256_after": "34b34be1ce158642ee4df7f5234a5688afea92f14e429519b30b28ebbcdfe0c7",
+      "backup_path": null
+    },
+    {
+      "path": ".github/workflows/prompts/pr-review-policy.md",
+      "module": "ai-pr-review",
+      "action": "created",
+      "source": ".github/workflows/prompts/pr-review-policy.md",
+      "sha256_before": null,
+      "sha256_after": "2985195b95347a95ffd250ed6d42993ed48a223408f9902c38555361ca05b42c",
+      "backup_path": null
+    },
+    {
+      "path": ".github/workflows/prompts/pr-review-output-contract.md",
+      "module": "ai-pr-review",
+      "action": "created",
+      "source": ".github/workflows/prompts/pr-review-output-contract.md",
+      "sha256_before": null,
+      "sha256_after": "31203b56a41f4928993c7e5c404363cc4187cf26ce65981b0d7fbd7c9bc5be6b",
+      "backup_path": null
+    },
+    {
+      "path": ".github/claude/deepseek-settings.json",
+      "module": "ai-pr-review",
+      "action": "created",
+      "source": ".github/claude/deepseek-settings.json",
+      "sha256_before": null,
+      "sha256_after": "2c8ddcc3ac0bf5708dee1e5a767829e7821c11da15cf11e73c834f61d55a2d1b",
+      "backup_path": null
+    },
+    {
+      "path": ".github/qoder/settings.json",
+      "module": "ai-pr-review",
+      "action": "created",
+      "source": ".github/qoder/settings.json",
+      "sha256_before": null,
+      "sha256_after": "cc7b9c81c02b3e3d116b801be59c997ed6c04e43f0c86c38dcef2792983b670c",
+      "backup_path": null
+    },
+    {
+      "path": "scripts/configure-ai-ci.sh",
+      "module": "ai-pr-review",
+      "action": "created",
+      "source": "scripts/configure-ai-ci.sh",
+      "sha256_before": null,
+      "sha256_after": "db1b3b9b2174f6970be23812c61f7f27438e8fca9e79c0ca1ca5681e4e188215",
+      "backup_path": null
+    },
+    {
+      "path": "scripts/upsert-pr-comment.sh",
+      "module": "ai-pr-review",
+      "action": "created",
+      "source": "scripts/upsert-pr-comment.sh",
+      "sha256_before": null,
+      "sha256_after": "b839437ba444759d75eb8c110a2dc3f18ee6d9ee3c24b85279a5bc61634bd43b",
+      "backup_path": null
+    },
+    {
+      "path": ".github/ai-review/settings.json",
+      "module": "ai-pr-review",
+      "action": "created",
+      "source": null,
+      "sha256_before": null,
+      "sha256_after": "3e6e252a1f2f109a62a03cae0c849725a6f880bb59bdd0e7b38ef98e62d1a886",
+      "backup_path": null
+    }
+  ],
+  "directories": [
+    {
+      "path": ".dogsquard",
+      "action": "created"
+    }
+  ],
+  "validation": {
+    "run_checks": true,
+    "commands": []
+  }
+}

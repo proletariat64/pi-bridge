@@ -1,0 +1,70 @@
+name: PR Quality Gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shell-check:
+    name: Shell Check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax check
+        run: bash -n scripts/*.sh
+
+  repository-hygiene:
+    name: Repository Hygiene
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Whitespace check
+        run: git diff --check
+      - name: Check local-only files
+        run: |
+          test ! -d .claude
+          test ! -f AGENTS.md
+          test ! -f CLAUDE.md
+          test ! -f roster.md
+          test ! -f .env.local
+
+  docs-quality:
+    name: Docs Quality
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Documentation checks
+        run: |
+          make doc-check
+          make doc-guard
+          make release-check
+
+  fake-implementation-guard:
+    name: Fake Implementation Guard
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan changed production code for fake-complete markers
+        run: make fake-check
+
+  pr-quality-summary:
+    name: PR Quality Summary
+    runs-on: ubuntu-24.04
+    needs:
+      - shell-check
+      - repository-hygiene
+      - docs-quality
+      - fake-implementation-guard
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          test "${{ needs.shell-check.result }}" = "success"
+          test "${{ needs.repository-hygiene.result }}" = "success"
+          test "${{ needs.docs-quality.result }}" = "success"
+          test "${{ needs.fake-implementation-guard.result }}" = "success"

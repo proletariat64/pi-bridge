@@ -1,0 +1,13 @@
+{
+  "enabled": false,
+  "engine": "claude-deepseek",
+  "claude": {
+    "provider": "deepseek"
+  },
+  "qoder": {
+    "models": [
+      "Qwen3.7-Max"
+    ],
+    "implicit_auto_fallback": true
+  }
+}

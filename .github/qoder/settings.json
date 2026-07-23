@@ -1,0 +1,7 @@
+{
+  "note": "Qoder CLI CI configuration. Keep only non-secret provider settings here.",
+  "secrets_policy": "Do not store tokens, cookies, personal access tokens, or other secrets in this file.",
+  "model_policy": "User-selected models live in .github/ai-review/settings.json. Auto is an implicit runner fallback and must not be stored as a user-selected model.",
+  "timeout_seconds": 600,
+  "settings": {}
+}
