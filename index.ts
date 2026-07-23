@@ -1,4 +1,3 @@
-import path from "node:path";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -13,6 +12,7 @@ import {
 	type ResolvedRuntime,
 	type RuntimeStatus,
 } from "./runtime.js";
+import { getProjectContext, type ProjectContext } from "./project.js";
 import {
 	extractLastAssistantText,
 	extractText,
@@ -30,10 +30,6 @@ const PLATFORM_SOURCE = "pi" as const;
 const FLUSH_TIMEOUT_MS = 5_000;
 
 type SessionStartReason = "startup" | "reload" | "new" | "resume" | "fork";
-
-function projectFor(cwd: string): string {
-	return process.env.CLAUDE_MEM_PI_PROJECT?.trim() || path.basename(cwd);
-}
 
 function logFailure(operation: string, error: string): void {
 	console.debug(`[claude-mem] ${operation} failed: ${error}`);
@@ -64,6 +60,7 @@ function completesBeforeDeadline(
 
 export default function claudeMemPiExtension(pi: ExtensionAPI): void {
 	const toolInputs = new Map<string, unknown>();
+	const completedToolCalls = new Set<string>();
 	let bootstrapFailure: string | undefined;
 	try {
 		ensureBridgeConfig();
@@ -72,12 +69,14 @@ export default function claudeMemPiExtension(pi: ExtensionAPI): void {
 	}
 
 	let state: BridgeState | undefined;
+	let projectContext: ProjectContext | undefined;
 	let enabled = false;
 	let disabledReason: string | undefined;
 	let selectedWorker: string | undefined;
 	let runtime: ResolvedRuntime | undefined;
 	let client: WorkerClient | undefined;
 	let observationQueue: Promise<void> = Promise.resolve();
+	let finalizationAttempted = false;
 	let finalizing: Promise<void> | undefined;
 
 	const persistState = () => {
@@ -130,14 +129,18 @@ export default function claudeMemPiExtension(pi: ExtensionAPI): void {
 
 	pi.on("session_start", async (event, ctx) => {
 		toolInputs.clear();
+		completedToolCalls.clear();
 		observationQueue = Promise.resolve();
+		finalizationAttempted = false;
 		finalizing = undefined;
+		projectContext = getProjectContext(ctx.cwd);
 		state = resolveBridgeState(
 			event.reason as SessionStartReason,
 			ctx.sessionManager,
 			ctx.sessionManager.getBranch(),
-			projectFor(ctx.cwd),
+			projectContext.primary,
 		);
+		state.project = projectContext.primary;
 		disabledReason = undefined;
 
 		if (bootstrapFailure) {
@@ -211,7 +214,9 @@ export default function claudeMemPiExtension(pi: ExtensionAPI): void {
 			persistState();
 		}
 
-		const context = await client.context(state.project);
+		const context = await client.context(
+			projectContext?.allProjects ?? [state.project],
+		);
 		if (!context.ok) {
 			enabled = false;
 			disabledReason = context.error;
@@ -238,7 +243,15 @@ export default function claudeMemPiExtension(pi: ExtensionAPI): void {
 	pi.on("tool_execution_end", (event, ctx) => {
 		const args = toolInputs.get(event.toolCallId);
 		toolInputs.delete(event.toolCallId);
-		if (!enabled || !state || event.toolName.startsWith("claude_mem_")) return;
+		if (
+			!enabled ||
+			!state ||
+			event.toolName.startsWith("claude_mem_") ||
+			completedToolCalls.has(event.toolCallId)
+		) {
+			return;
+		}
+		completedToolCalls.add(event.toolCallId);
 
 		enqueueObservation({
 			contentSessionId: state.contentSessionId,
@@ -251,53 +264,71 @@ export default function claudeMemPiExtension(pi: ExtensionAPI): void {
 		});
 	});
 
-	pi.on("session_compact", () => {
-		// Pi retains extension custom entries on the active branch; no new worker session is created.
+	const summarizeAfterFlush = async (
+		activeClient: WorkerClient,
+		entries: readonly unknown[],
+		ctx: ExtensionContext,
+		finalize: boolean,
+	): Promise<void> => {
+		const deadline = Date.now() + FLUSH_TIMEOUT_MS;
+		const failureStatus = finalize
+			? "finalization failed"
+			: "compaction summary failed";
+		const flushed = await completesBeforeDeadline(
+			observationQueue,
+			FLUSH_TIMEOUT_MS,
+		);
+		if (!flushed) {
+			logFailure("observation flush", "timed out after 5000ms");
+			setFailureStatus(ctx, failureStatus);
+			return;
+		}
+
+		const remainingMs = deadline - Date.now();
+		if (remainingMs <= 0) {
+			setFailureStatus(ctx, failureStatus);
+			return;
+		}
+
+		const result = await activeClient.summarize(
+			{
+				contentSessionId: state!.contentSessionId,
+				last_assistant_message: extractLastAssistantText(entries),
+				platformSource: PLATFORM_SOURCE,
+			},
+			remainingMs,
+		);
+		if (!result.ok) {
+			logFailure("session summarization", result.error);
+			setFailureStatus(ctx, failureStatus);
+			return;
+		}
+
+		if (finalize) {
+			state!.finalized = true;
+			persistState();
+		}
+		setFailureStatus(ctx);
+	};
+
+	pi.on("session_before_compact", async (event, ctx) => {
+		if (!enabled || !state || !client || state.finalized) return;
+		await summarizeAfterFlush(client, event.branchEntries, ctx, false);
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		if (!enabled || !state || !client || state.finalized) return;
 		if (finalizing) return finalizing;
+		if (finalizationAttempted) return;
+		finalizationAttempted = true;
 		const activeClient = client;
 
-		finalizing = (async () => {
-			const deadline = Date.now() + FLUSH_TIMEOUT_MS;
-			const flushed = await completesBeforeDeadline(
-				observationQueue,
-				FLUSH_TIMEOUT_MS,
-			);
-			if (!flushed) {
-				logFailure("observation flush", "timed out after 5000ms");
-				setFailureStatus(ctx, "finalization failed");
-				return;
-			}
-
-			const remainingMs = deadline - Date.now();
-			if (remainingMs <= 0) {
-				setFailureStatus(ctx, "finalization failed");
-				return;
-			}
-
-			const result = await activeClient.summarize(
-				{
-					contentSessionId: state!.contentSessionId,
-					last_assistant_message: extractLastAssistantText(
-						ctx.sessionManager.getBranch(),
-					),
-					platformSource: PLATFORM_SOURCE,
-				},
-				remainingMs,
-			);
-			if (!result.ok) {
-				logFailure("session summarization", result.error);
-				setFailureStatus(ctx, "finalization failed");
-				return;
-			}
-
-			state!.finalized = true;
-			persistState();
-			setFailureStatus(ctx);
-		})().finally(() => {
+		finalizing = summarizeAfterFlush(
+			activeClient,
+			ctx.sessionManager.getBranch(),
+			ctx,
+			true,
+		).finally(() => {
 			finalizing = undefined;
 		});
 

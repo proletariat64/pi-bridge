@@ -12,7 +12,7 @@ describe("WorkerClient", () => {
     const client = new WorkerClient({ baseUrl: "http://worker/", apiKey: "secret", fetchImpl: fetchImpl as typeof fetch });
 
     await client.init({ contentSessionId: "pi-1", project: "repo", prompt: "hello", platformSource: "pi" });
-    await client.context("repo with space");
+    await client.context(["parent repo", "parent repo/worktree"]);
 
     expect(requests[0].url).toBe("http://worker/api/sessions/init");
     expect(JSON.parse(String(requests[0].init.body))).toEqual({
@@ -20,7 +20,7 @@ describe("WorkerClient", () => {
     });
     expect(new Headers(requests[0].init.headers).get("Authorization")).toBe("Bearer secret");
     expect(new Headers(requests[1].init.headers).get("Content-Type")).toBe("application/json");
-    expect(requests[1].url).toBe("http://worker/api/context/inject?projects=repo+with+space&platformSource=pi");
+    expect(requests[1].url).toBe("http://worker/api/context/inject?projects=parent+repo%2Cparent+repo%2Fworktree&platformSource=pi");
   });
 
   it("returns failures instead of throwing on refusal, timeout, and malformed JSON", async () => {

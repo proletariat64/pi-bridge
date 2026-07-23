@@ -173,12 +173,21 @@ The claude-mem content session ID is derived from Pi's session file when one is
 available, otherwise from Pi's session ID. Reloading or resuming restores the
 same ID. New and forked sessions receive a new ID.
 
+### Project identity
+
+Project naming matches Claude-mem. Directories inside a normal Git repository
+use the repository root name. A linked worktree uses the composite
+`parent/worktree` identity, and recall queries both the parent and composite
+projects so inherited context remains available without broadening platform
+source.
+
 ### Ordered and idempotent observations
 
 Tool results are placed onto a single promise queue so the worker receives them
-in completion order. Pi's tool call ID is forwarded as `tool_use_id`, allowing
-the worker to reject duplicate deliveries. Tools whose name starts with
-`claude_mem_` are skipped to avoid recording memory operations recursively.
+in completion order. Duplicate completion events are suppressed by Pi tool call
+ID, which is also forwarded as `tool_use_id` for worker-side idempotency. Tools
+whose name starts with `claude_mem_` are skipped to avoid recording memory
+operations recursively.
 
 ### Failure isolation
 
@@ -195,10 +204,11 @@ Tool inputs recursively redact keys such as `apiKey`, `token`, `password`,
 
 ### Source-scoped recall
 
-All writes carry `platformSource: "pi"`, and context injection requests Pi
-memories for the current project. Claude, Codex, and Pi can use the same worker
-and database, but automatic recall remains separated by platform source. This
-prevents one agent's history from being injected into another agent by default.
+All writes carry `platformSource: "pi"`, and context injection explicitly
+filters to `platformSource=pi` for the current repository project chain. Claude,
+Codex, and Pi can use the same worker and database, but automatic recall remains
+separated by platform source. This prevents one agent's history from being
+injected into another agent by default.
 
 ## Commands
 
