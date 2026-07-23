@@ -7,7 +7,7 @@ source: "github"
 created: "2026-07-23"
 updated: "2026-07-23"
 related_issue: "https://github.com/proletariat64/pi-bridge/issues/5"
-related_pr: ""
+related_pr: "https://github.com/proletariat64/pi-bridge/pull/9"
 supersedes: ""
 ---
 
