@@ -1,0 +1,97 @@
+name: Feature request
+description: Plan small SDD / PRD / BDD driven feature work.
+title: "feat: "
+labels:
+  - feat
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for issue-driven feature work. Keep scope small, define docs before code, and keep requirements under human control.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Briefly describe the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / user need
+      description: What user need, workflow, or project gap does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: related-docs
+    attributes:
+      label: Related BRD / PRD
+      description: Link existing BRD or PRD documents, or state which document must be created or updated before coding.
+      placeholder: |
+        - BRD:
+        - PRD:
+    validations:
+      required: true
+  - type: textarea
+    id: bdd
+    attributes:
+      label: BDD acceptance criteria
+      description: Add Gherkin-style scenarios or concise acceptance criteria.
+      placeholder: |
+        Given ...
+        When ...
+        Then ...
+    validations:
+      required: true
+  - type: textarea
+    id: ddd
+    attributes:
+      label: DDD / architecture notes if relevant
+      description: Note domain model, architecture, integration, or ADR impact. Use "Not applicable" when none.
+    validations:
+      required: true
+  - type: textarea
+    id: tdd
+    attributes:
+      label: TDD plan
+      description: Describe tests to write before or alongside implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: e2e
+    attributes:
+      label: Playwright / E2E impact
+      description: Describe smoke, regression, or no-impact reasoning.
+    validations:
+      required: true
+  - type: textarea
+    id: docs
+    attributes:
+      label: Documentation impact
+      description: List docs that must be added or updated.
+    validations:
+      required: true
+  - type: textarea
+    id: release
+    attributes:
+      label: Release / deployment impact
+      description: Describe release risk, migration needs, deployment effects, or "None".
+    validations:
+      required: true
+  - type: textarea
+    id: agents
+    attributes:
+      label: Agent instructions
+      description: Give explicit agent boundaries. Do not ask agents to invent requirements.
+      placeholder: |
+        Agents may:
+        Agents must not:
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope guard / non-goals
+      description: Define what this issue must not include.
+    validations:
+      required: true

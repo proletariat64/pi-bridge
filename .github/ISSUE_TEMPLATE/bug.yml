@@ -1,0 +1,83 @@
+name: Bug report
+description: Report a defect with reproduction and regression-test expectations.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide exact steps, input data, and URLs or commands when relevant.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Local, dev, production, browser, OS, commit, or other relevant context.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs/screenshots if any
+      description: Paste relevant logs or attach screenshots. Do not include secrets.
+    validations:
+      required: false
+  - type: textarea
+    id: suspected-area
+    attributes:
+      label: Suspected area
+      description: Note likely code, workflow, docs, test, infra, or unknown area.
+    validations:
+      required: false
+  - type: textarea
+    id: regression-tests
+    attributes:
+      label: Regression test plan
+      description: What test should fail before the fix and pass after it?
+    validations:
+      required: true
+  - type: textarea
+    id: docs
+    attributes:
+      label: Documentation impact
+      description: Which docs need correction or confirmation?
+    validations:
+      required: true
+  - type: textarea
+    id: release-risk
+    attributes:
+      label: Release risk
+      description: Describe user impact, rollback notes, hotfix need, or "Low".
+    validations:
+      required: true
+  - type: textarea
+    id: agents
+    attributes:
+      label: Agent instructions
+      description: Tell agents what to inspect and what not to change.
+      placeholder: |
+        Agents may:
+        Agents must not:
+    validations:
+      required: true

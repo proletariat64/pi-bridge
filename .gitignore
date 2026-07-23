@@ -2,3 +2,9 @@ node_modules/
 __pycache__/
 *.log
 .DS_Store
+
+# Dogsquard local/private agent files
+.claude/
+AGENTS.md
+CLAUDE.md
+roster.md
