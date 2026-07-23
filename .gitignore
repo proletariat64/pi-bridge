@@ -5,6 +5,5 @@ __pycache__/
 
 # Dogsquard local/private agent files
 .claude/
-AGENTS.md
 CLAUDE.md
 roster.md
