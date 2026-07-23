@@ -1,0 +1,20 @@
+{
+  "name": "pi-bridge",
+  "version": "0.1.0",
+  "description": "Native Pi lifecycle bridge for the claude-mem worker",
+  "license": "Apache-2.0",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "claude-mem",
+    "memory"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "bun test"
+  }
+}
