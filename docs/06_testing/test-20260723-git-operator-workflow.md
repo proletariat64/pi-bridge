@@ -1,7 +1,7 @@
 ---
 title: "Git-only operator workflow release check"
 doc_type: "test"
-status: "draft"
+status: "review"
 owner: "coding-agent"
 source: "github"
 created: "2026-07-23"
@@ -57,8 +57,22 @@ keys, prompts containing secrets, or memory contents.
 - `pi remove git:github.com/proletariat64/pi-bridge` removed the isolated clone.
 - `npm pack --dry-run` also included the CLI with mode `0755`.
 
-Real-worker run: blocked. The available Claude-mem checkout is version 13.11.0,
-but no worker was listening on its configured `127.0.0.1:37700` endpoint or the
-UID-derived default during implementation. No Claude-mem process-management
-action was attempted. An already-running supported worker is required before
-this document can be marked complete.
+### 2026-07-23 real-worker run
+
+- Pi 0.81.1 loaded the installed Git package against an already-running
+  Claude-mem 13.11.0 worker at `127.0.0.1:37700`.
+- `pi-claude-mem status` reported the selected `default` worker as active and
+  healthy, with host and port sourced from Claude-mem settings.
+- `pi-claude-mem doctor` passed every configuration, installation, selection,
+  health/version, and read-only API check.
+- Confirmed smoke session `72df9d0c-3af6-4c9e-af08-dbdbfe62a666` completed the
+  reserved-project lifecycle successfully.
+- A real non-interactive Pi/Kimi session initialized content session
+  `pi-0bbc2d98497cc8cea0f1904779066f5b9089e7076e8221e7b204ada596c9045b`
+  for project `pi-bridge` with platform source `pi`. Its completed `read` tool
+  result was queued before final summarization; Claude-mem stored summary ID 8
+  and synchronized it to vector storage.
+- A Pi-scoped context request returned stored context without exposing memory
+  contents, verifying automatic recall through `platformSource=pi`.
+- Pi Bridge issued no process-management command. Claude-mem installation and
+  startup were separate, explicit operator actions performed before this check.
