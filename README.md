@@ -52,15 +52,20 @@ ln -sfn ~/dev/pi-bridge ~/.pi/agent/extensions/claude-mem
 Pi discovers the repository through the `pi.extensions` entry in
 `package.json`. The extension has no runtime npm dependencies.
 
-The Git package also includes `bin/pi-claude-mem.ts`. Linking the terminal
-command is deliberately explicit; installation does not edit `PATH` or shell
-startup files. For a checkout, for example:
+The Git package also includes the executable `bin/pi-claude-mem.ts`. Pi installs
+the repository under `~/.pi/agent/git/`. Link that packaged executable
+explicitly into your local executable directory:
 
 ```bash
-mkdir -p ~/.local/bin
-ln -sfn "$PWD/bin/pi-claude-mem.ts" ~/.local/bin/pi-claude-mem
+mkdir -p "$HOME/.local/bin"
+ln -sfn "$HOME/.pi/agent/git/github.com/proletariat64/pi-bridge/bin/pi-claude-mem.ts" \
+  "$HOME/.local/bin/pi-claude-mem"
 pi-claude-mem status
 ```
+
+This command creates only the symlink. Pi Bridge never edits `PATH` or shell
+startup files; `~/.local/bin` must already be executable from your shell. You
+can instead invoke the packaged file by its absolute path.
 
 Pass `--worker NAME` when a terminal command must select among multiple
 configured workers:
@@ -135,6 +140,11 @@ back. One configured worker is automatic. Multiple workers prompt only in an
 interactive Pi UI, and that choice remains process-local. Ambiguous headless
 operation disables memory rather than guessing; ambiguous terminal use requires
 `--worker NAME`.
+
+To leave selection interactive, keep `activeWorker` empty. To select a named
+worker for every Pi run, set `activeWorker` to that worker's exact map key. Use
+`--worker NAME` for deterministic terminal and headless checks; it never changes
+the stored selection.
 
 ## How It Works
 
@@ -255,6 +265,32 @@ configuration files:
 ```bash
 export CLAUDE_MEM_API_KEY=your-key
 ```
+
+## Update, Disable, and Uninstall
+
+Update only this Git package with its original source identifier:
+
+```bash
+pi update --extension git:github.com/proletariat64/pi-bridge
+```
+
+Run `pi config`, find the Pi Bridge package resource, and press Space to disable
+or re-enable it. Disabling the package is the durable switch for automatic Pi
+recall and capture; it does not stop Claude-mem or alter its data. The terminal
+CLI remains available through the explicit symlink and runs only when invoked.
+
+To uninstall the integration, remove the Pi package and then remove the
+explicit CLI symlink:
+
+```bash
+pi remove git:github.com/proletariat64/pi-bridge
+unlink "$HOME/.local/bin/pi-claude-mem"
+```
+
+Uninstalling leaves Claude-mem, its worker, database, credentials, permanent
+smoke records, and `~/.pi/agent/claude-mem-bridge.json` untouched. Remove or
+edit that bridge configuration separately only if you intentionally want to
+discard your worker selections.
 
 ## Development
 
