@@ -26,10 +26,24 @@ jobs:
       - name: Check local-only files
         run: |
           test ! -d .claude
-          test ! -f AGENTS.md
           test ! -f CLAUDE.md
           test ! -f roster.md
           test ! -f .env.local
+
+  runtime-quality:
+    name: Runtime Quality
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Test
+        run: bun test
+      - name: Typecheck
+        run: bun run typecheck
 
   docs-quality:
     name: Docs Quality
@@ -58,6 +72,7 @@ jobs:
     needs:
       - shell-check
       - repository-hygiene
+      - runtime-quality
       - docs-quality
       - fake-implementation-guard
     if: always()
@@ -66,5 +81,6 @@ jobs:
         run: |
           test "${{ needs.shell-check.result }}" = "success"
           test "${{ needs.repository-hygiene.result }}" = "success"
+          test "${{ needs.runtime-quality.result }}" = "success"
           test "${{ needs.docs-quality.result }}" = "success"
           test "${{ needs.fake-implementation-guard.result }}" = "success"

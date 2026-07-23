@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "types": ["bun"],
+    "skipLibCheck": true
+  },
+  "files": [
+    "client.ts",
+    "index.ts",
+    "runtime.ts",
+    "serialize.ts",
+    "state.ts",
+    "bin/pi-claude-mem.ts"
+  ]
+}
