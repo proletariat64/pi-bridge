@@ -11,6 +11,7 @@
   "files": [
     "client.ts",
     "index.ts",
+    "operations.ts",
     "project.ts",
     "runtime.ts",
     "serialize.ts",

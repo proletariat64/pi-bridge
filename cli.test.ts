@@ -27,17 +27,34 @@ function writeBridgeConfig(home: string, config: unknown): string {
 	return configPath;
 }
 
+function installProcessTrap(home: string): { path: string; marker: string } {
+	const fakeBin = path.join(home, "fake-bin");
+	const marker = path.join(home, "managed-process");
+	mkdirSync(fakeBin, { recursive: true });
+	const trap =
+		'#!/bin/sh\nprintf managed > "$CLAUDE_MEM_TEST_PROCESS_MARKER"\nexit 99\n';
+	for (const command of ["claude-mem", "pi", "bun", "node", "npm", "npx"])
+		writeFileSync(path.join(fakeBin, command), trap, { mode: 0o755 });
+	return { path: fakeBin, marker };
+}
+
 async function runCli(
 	home: string,
 	args: string[],
 	extraEnv: Record<string, string> = {},
+	input?: string,
 ) {
 	const proc = Bun.spawn([process.execPath, cliPath, ...args], {
 		cwd: import.meta.dir,
 		env: { ...process.env, HOME: home, ...extraEnv },
+		stdin: input === undefined ? "ignore" : "pipe",
 		stdout: "pipe",
 		stderr: "pipe",
 	});
+	if (input !== undefined && proc.stdin) {
+		proc.stdin.write(input);
+		proc.stdin.end();
+	}
 	const [stdout, stderr, exitCode] = await Promise.all([
 		new Response(proc.stdout).text(),
 		new Response(proc.stderr).text(),
@@ -395,6 +412,246 @@ describe("pi-claude-mem terminal status", () => {
 			} finally {
 				server.stop(true);
 			}
+		}
+	});
+});
+
+describe("pi-claude-mem terminal doctor", () => {
+	it("reports installation, runtime provenance, duplicate endpoints, and read-only API compatibility", async () => {
+		const home = tempHome();
+		const processTrap = installProcessTrap(home);
+		const firstDataDir = path.join(home, "first-worker");
+		const secondDataDir = path.join(home, "second-worker");
+		mkdirSync(firstDataDir, { recursive: true });
+		mkdirSync(secondDataDir, { recursive: true });
+		mkdirSync(path.join(home, ".pi", "agent"), { recursive: true });
+		writeFileSync(
+			path.join(home, ".pi", "agent", "settings.json"),
+			JSON.stringify({
+				packages: ["git:github.com/proletariat64/pi-bridge"],
+			}),
+		);
+		const requests: Array<{ method: string; path: string }> = [];
+		let acceptedWrites = 0;
+		const server = Bun.serve({
+			port: 0,
+			fetch: async (request) => {
+				const url = new URL(request.url);
+				requests.push({ method: request.method, path: url.pathname });
+				if (url.pathname === "/api/health")
+					return Response.json({ status: "ok", version: "13.11.0" });
+				if (url.pathname === "/api/context/inject")
+					return new Response("", { status: 204 });
+				if (request.method === "POST") {
+					const body = (await request.json()) as Record<string, unknown>;
+					if (Object.keys(body).length === 0)
+						return Response.json({ error: "ValidationError" }, { status: 400 });
+					acceptedWrites += 1;
+					return Response.json({ status: "accepted" });
+				}
+				return new Response("not found", { status: 404 });
+			},
+		});
+		writeBridgeConfig(home, {
+			version: 1,
+			activeWorker: "first",
+			workers: {
+				first: { dataDir: firstDataDir },
+				second: { dataDir: secondDataDir },
+			},
+		});
+
+		try {
+			const result = await runCli(home, ["doctor"], {
+				PATH: processTrap.path,
+				CLAUDE_MEM_TEST_PROCESS_MARKER: processTrap.marker,
+				CLAUDE_MEM_WORKER_HOST: "127.0.0.1",
+				CLAUDE_MEM_WORKER_PORT: String(server.port),
+			});
+			expect(result.exitCode).toBe(0);
+			expect(result.stderr).toBe("");
+			expect(result.stdout).toContain("Doctor: pass");
+			expect(result.stdout).toContain("[PASS] Pi package registration");
+			expect(result.stdout).toContain("[PASS] Claude-mem data directory");
+			expect(result.stdout).toContain("[WARN] Duplicate endpoint");
+			expect(result.stdout).toContain("[PASS] Worker health and version");
+				expect(result.stdout).toContain("[PASS] Required worker API");
+				expect(requests.map((request) => request.path)).toEqual([
+					"/api/health",
+					"/api/context/inject",
+				]);
+				expect(requests.map((request) => request.method)).toEqual(["GET", "GET"]);
+			expect(acceptedWrites).toBe(0);
+			expect(existsSync(processTrap.marker)).toBe(false);
+		} finally {
+			server.stop(true);
+		}
+	});
+
+	it("returns failure for an unreachable selected worker without mutating configuration", async () => {
+		const home = tempHome();
+		const dataDir = path.join(home, "worker-data");
+		mkdirSync(dataDir, { recursive: true });
+		mkdirSync(path.join(home, ".pi", "agent"), { recursive: true });
+		writeFileSync(
+			path.join(home, ".pi", "agent", "settings.json"),
+			JSON.stringify({ packages: ["git:github.com/proletariat64/pi-bridge"] }),
+		);
+		const original =
+			'{"version":1,"activeWorker":"work","workers":{"work":{"dataDir":"' +
+			dataDir.replaceAll("\\", "\\\\") +
+			'"}}}\n';
+		const configPath = path.join(
+			home,
+			".pi",
+			"agent",
+			"claude-mem-bridge.json",
+		);
+		writeFileSync(configPath, original);
+
+		const result = await runCli(home, ["doctor"], {
+			CLAUDE_MEM_WORKER_HOST: "127.0.0.1",
+			CLAUDE_MEM_WORKER_PORT: "1",
+		});
+		expect(result.exitCode).toBe(1);
+		expect(result.stdout).toContain("Doctor: fail");
+		expect(result.stdout).toContain("[FAIL] Worker health and version");
+		expect(result.stdout).toContain("repair Claude-mem outside Pi Bridge");
+		expect(readFileSync(configPath, "utf8")).toBe(original);
+	});
+});
+
+describe("pi-claude-mem terminal smoke test", () => {
+	it("requires confirmation, then sends one isolated Pi lifecycle without model readback", async () => {
+		const home = tempHome();
+		const processTrap = installProcessTrap(home);
+		const requests: Array<{
+			method: string;
+			url: URL;
+			body?: Record<string, unknown>;
+		}> = [];
+		const server = Bun.serve({
+			port: 0,
+			fetch: async (request) => {
+				const body =
+					request.method === "POST"
+						? ((await request.json()) as Record<string, unknown>)
+						: undefined;
+				requests.push({ method: request.method, url: new URL(request.url), body });
+				if (request.url.includes("/api/health"))
+					return Response.json({ status: "ok", version: "13.11.0" });
+				if (request.url.includes("/api/context/inject"))
+					return new Response("");
+				return Response.json({ status: "accepted" });
+			},
+		});
+		writeBridgeConfig(home, {
+			version: 1,
+			activeWorker: "",
+			workers: { default: {} },
+		});
+		const environment = {
+			PATH: processTrap.path,
+			CLAUDE_MEM_TEST_PROCESS_MARKER: processTrap.marker,
+			CLAUDE_MEM_WORKER_HOST: "127.0.0.1",
+			CLAUDE_MEM_WORKER_PORT: String(server.port),
+		};
+
+		try {
+			const refused = await runCli(
+				home,
+				["smoke-test"],
+				environment,
+				"n\n",
+			);
+			expect(refused.exitCode).toBe(2);
+			expect(refused.stdout).toContain(
+				"Smoke test cancelled; no worker writes were sent.",
+			);
+			expect(requests).toHaveLength(0);
+
+			const confirmed = await runCli(home, ["smoke-test", "--yes"], environment);
+			expect(confirmed.exitCode).toBe(0);
+			expect(confirmed.stderr).toBe("");
+			expect(confirmed.stdout).toContain("Smoke test: pass");
+			expect(confirmed.stdout).toContain(
+				"records remain permanently isolated under __pi_bridge_smoke__",
+			);
+			expect(requests.map((request) => request.url.pathname)).toEqual([
+				"/api/health",
+				"/api/sessions/init",
+				"/api/context/inject",
+				"/api/sessions/observations",
+				"/api/sessions/summarize",
+			]);
+			const sessionId = String(requests[1].body?.contentSessionId);
+			expect(sessionId).toMatch(
+				/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+			);
+			expect(requests[1].body).toMatchObject({
+				contentSessionId: sessionId,
+				project: "__pi_bridge_smoke__",
+				platformSource: "pi",
+			});
+			expect(requests[2].url.searchParams.get("projects")).toBe(
+				"__pi_bridge_smoke__",
+			);
+			expect(requests[2].url.searchParams.get("platformSource")).toBe("pi");
+			expect(requests[3].body).toMatchObject({
+				contentSessionId: sessionId,
+				tool_name: "pi_bridge_smoke_test",
+				platformSource: "pi",
+			});
+			expect(requests[4].body).toMatchObject({
+				contentSessionId: sessionId,
+				platformSource: "pi",
+			});
+			expect(existsSync(processTrap.marker)).toBe(false);
+
+			requests.length = 0;
+			const repeated = await runCli(home, ["smoke-test", "--yes"], environment);
+			expect(repeated.exitCode).toBe(0);
+			expect(requests[1].body?.contentSessionId).not.toBe(sessionId);
+		} finally {
+			server.stop(true);
+		}
+	});
+
+	it("stops at the first refused lifecycle request and returns failure", async () => {
+		const home = tempHome();
+		const requests: string[] = [];
+		const server = Bun.serve({
+			port: 0,
+			fetch: (request) => {
+				const pathname = new URL(request.url).pathname;
+				requests.push(pathname);
+				if (pathname === "/api/health")
+					return Response.json({ status: "ok", version: "13.11.0" });
+				if (pathname === "/api/context/inject") return new Response("");
+				if (pathname === "/api/sessions/observations")
+					return new Response("refused", { status: 503 });
+				return Response.json({ status: "accepted" });
+			},
+		});
+		writeBridgeConfig(home, {
+			version: 1,
+			activeWorker: "",
+			workers: { default: {} },
+		});
+		try {
+			const result = await runCli(home, ["smoke-test", "--yes"], {
+				CLAUDE_MEM_WORKER_HOST: "127.0.0.1",
+				CLAUDE_MEM_WORKER_PORT: String(server.port),
+			});
+			expect(result.exitCode).toBe(1);
+			expect(result.stdout).toContain("Smoke test: fail");
+			expect(result.stdout).toContain("returned 503");
+			expect(result.stdout).toContain(
+				"records may remain permanently isolated under __pi_bridge_smoke__",
+			);
+			expect(requests).not.toContain("/api/sessions/summarize");
+		} finally {
+			server.stop(true);
 		}
 	});
 });

@@ -69,6 +69,18 @@ configured workers:
 pi-claude-mem status --worker work
 ```
 
+Doctor and smoke testing are available from both Pi and the terminal:
+
+```text
+/claude-mem-doctor
+/claude-mem-smoke-test
+```
+
+```bash
+pi-claude-mem doctor [--worker NAME]
+pi-claude-mem smoke-test [--worker NAME] [--yes]
+```
+
 ## Runtime Configuration
 
 Pi Bridge stores one versioned user configuration at:
@@ -218,6 +230,24 @@ injected into another agent by default.
   failure reason, and Pi content-session identity.
 - `pi-claude-mem status [--worker NAME]` exposes the same runtime inspection at
   the terminal. It requires an explicit worker when configuration is ambiguous.
+- `/claude-mem-doctor` and `pi-claude-mem doctor [--worker NAME]` run the same
+  read-only diagnostics. Doctor checks Pi package registration, bridge schema,
+  data and settings paths, deterministic selection, endpoint provenance and
+  aliases, health/version compatibility, and the required worker routes. It
+  never repairs state or manages Claude-mem; the terminal command exits nonzero
+  when a required check fails.
+- `/claude-mem-smoke-test` always asks before writing. The terminal command asks
+  interactively unless `--yes` is supplied for deliberate automation. A
+  confirmed run uses a unique session under reserved project
+  `__pi_bridge_smoke__`, then sends the exact health, initialization, Pi-only
+  context, observation, and summary lifecycle. Success verifies bounded request
+  acceptance only—it does not wait for generated memory readback. Claude-mem
+  has no session-delete contract, so these harmless isolated records remain
+  permanently.
+
+Refusing smoke confirmation sends no worker requests. Doctor and smoke failures
+provide remediation, but Pi Bridge never creates, starts, repairs, restarts,
+stops, reconfigures, or otherwise manages Claude-mem.
 
 If the worker requires an API key, set it without placing the secret in Pi's
 configuration files:
@@ -234,8 +264,9 @@ bun test
 
 The tests cover runtime discovery, deterministic worker selection, version
 gating, lifecycle ordering, stable IDs, reload and fork behavior, failed tools,
-duplicate prevention, timeout handling, redaction, truncation, and exactly-once
-finalization.
+duplicate prevention, timeout handling, redaction, truncation, exactly-once
+finalization, read-only doctor diagnostics, explicit smoke confirmation, and
+the isolated smoke lifecycle.
 
 ## License
 
