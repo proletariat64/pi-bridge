@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
+	chmodSync,
 	existsSync,
 	mkdtempSync,
 	mkdirSync,
@@ -8,6 +9,7 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import claudeMemPiExtension from "./index.js";
@@ -24,6 +26,7 @@ function createHarness(
 		selection?: string;
 		mode?: "tui" | "rpc" | "json" | "print";
 		hasUI?: boolean;
+		cwd?: string;
 	} = {},
 ) {
 	const home =
@@ -71,7 +74,7 @@ function createHarness(
 		};
 	}
 	const ctx = {
-		cwd: "/work/repo",
+		cwd: options.cwd ?? "/work/repo",
 		mode: options.mode ?? "tui",
 		hasUI: options.hasUI ?? true,
 		sessionManager: {
@@ -124,6 +127,7 @@ interface RequestRecord {
 function mockWorker(
 	options: {
 		context?: string;
+		failSummarize?: boolean;
 		observeGate?: Promise<void>;
 		fail?: boolean;
 		version?: string;
@@ -142,6 +146,8 @@ function mockWorker(
 			body: init?.body ? JSON.parse(String(init.body)) : undefined,
 		});
 		if (options.fail) throw new Error("refused");
+		if (options.failSummarize && url.includes("/summarize"))
+			throw new Error("refused");
 		if (url.includes("/observations")) await options.observeGate;
 		if (url.includes("/context/inject"))
 			return new Response(options.context ?? "memory");
@@ -490,6 +496,63 @@ describe("Pi bridge lifecycle", () => {
 		expect(second).toEqual(first);
 	});
 
+	it("matches Claude-mem repository and worktree project identity and Pi-only recall chains", async () => {
+		const fixture = mkdtempSync(path.join(tmpdir(), "pi-bridge-project-"));
+		const repository = path.join(fixture, "parent-repo");
+		const nested = path.join(repository, "packages", "app");
+		const worktree = path.join(fixture, "feature-worktree");
+		mkdirSync(nested, { recursive: true });
+		for (const args of [
+			["init"],
+			["config", "user.email", "pi-bridge@example.test"],
+			["config", "user.name", "Pi Bridge"],
+			["commit", "--allow-empty", "-m", "initial"],
+			["worktree", "add", "-b", "feature", worktree],
+		]) {
+			const result = spawnSync("git", args, {
+				cwd: repository,
+				encoding: "utf8",
+			});
+			expect(result.status).toBe(0);
+		}
+
+		const normalWorker = mockWorker();
+		const normal = createHarness(normalWorker.fetchImpl, { cwd: nested });
+		await normal.fire("session_start", { reason: "startup" });
+		await normal.fire("before_agent_start", { prompt: "normal" });
+		const normalInit = normalWorker.requests.find((request) =>
+			request.url.endsWith("/api/sessions/init"),
+		);
+		expect(normalInit?.body.project).toBe("parent-repo");
+		const normalContext = normalWorker.requests.find((request) =>
+			request.url.includes("/api/context/inject"),
+		);
+		expect(normalContext?.url).toContain("projects=parent-repo");
+		expect(normalContext?.url).toContain("platformSource=pi");
+		normal.restore();
+
+		const worktreeWorker = mockWorker();
+		const worktreeHarness = createHarness(worktreeWorker.fetchImpl, {
+			cwd: worktree,
+		});
+		restore = worktreeHarness.restore;
+		await worktreeHarness.fire("session_start", { reason: "startup" });
+		await worktreeHarness.fire("before_agent_start", { prompt: "worktree" });
+		const worktreeInit = worktreeWorker.requests.find((request) =>
+			request.url.endsWith("/api/sessions/init"),
+		);
+		expect(worktreeInit?.body.project).toBe("parent-repo/feature-worktree");
+		const worktreeContext = worktreeWorker.requests.find((request) =>
+			request.url.includes("/api/context/inject"),
+		);
+		expect(worktreeContext?.url).toContain(
+			"projects=parent-repo%2Cparent-repo%2Ffeature-worktree",
+		);
+		expect(worktreeContext?.url).toContain("platformSource=pi");
+		expect(worktreeContext?.url).not.toMatch(/claude|codex/i);
+		rmSync(fixture, { recursive: true, force: true });
+	});
+
 	it("records successful and failed tools once, skips bridge tools, and flushes before one summarize", async () => {
 		let release!: () => void;
 		const gate = new Promise<void>((resolve) => {
@@ -508,6 +571,12 @@ describe("Pi bridge lifecycle", () => {
 			toolCallId: "one",
 			toolName: "bash",
 			result: { content: [{ type: "text", text: "ok" }] },
+			isError: false,
+		});
+		await harness.fire("tool_execution_end", {
+			toolCallId: "one",
+			toolName: "bash",
+			result: { content: [{ type: "text", text: "duplicate" }] },
 			isError: false,
 		});
 		await harness.fire("tool_execution_start", {
@@ -560,27 +629,79 @@ describe("Pi bridge lifecycle", () => {
 		);
 		expect(summaries).toHaveLength(1);
 		expect(summaries[0].body.last_assistant_message).toBe("finished");
+		expect(summaries[0].body.platformSource).toBe("pi");
 		expect(
 			worker.requests.some((request) => request.url.includes("/complete")),
 		).toBe(false);
 	});
 
-	it("keeps compaction identity and restores it after reload while forks get a new ID", async () => {
-		const worker = mockWorker();
-		const first = createHarness(worker.fetchImpl);
-		restore = first.restore;
-		await first.fire("session_start", { reason: "startup" });
-		const initial = first.entries.find(
+	it("flushes observations before compaction summaries without changing stable identity", async () => {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const worker = mockWorker({ observeGate: gate });
+		const harness = createHarness(worker.fetchImpl);
+		restore = harness.restore;
+		await harness.fire("session_start", { reason: "startup" });
+		const initial = harness.entries.find(
 			(entry) => entry.customType === STATE_ENTRY_TYPE,
 		).data.contentSessionId;
-		await first.fire("session_compact", { reason: "manual", willRetry: false });
-		expect(first.entries.at(-1).data.contentSessionId).toBe(initial);
+		await harness.fire("tool_execution_start", {
+			toolCallId: "compact-tool",
+			toolName: "bash",
+			args: { command: "pwd" },
+		});
+		await harness.fire("tool_execution_end", {
+			toolCallId: "compact-tool",
+			toolName: "bash",
+			result: "done",
+			isError: false,
+		});
+		const branchEntries = [
+			{
+				type: "message",
+				message: {
+					role: "assistant",
+					content: [{ type: "text", text: "before compact" }],
+				},
+			},
+		];
+		const compact = harness.fire("session_before_compact", {
+			reason: "manual",
+			willRetry: false,
+			branchEntries,
+			preparation: {},
+			signal: new AbortController().signal,
+		});
+		await Bun.sleep(5);
+		expect(
+			worker.requests.some((request) => request.url.includes("/summarize")),
+		).toBe(false);
+		release();
+		await compact;
 
-		await first.fire("session_start", { reason: "reload" });
-		expect(first.entries.at(-1).data.contentSessionId).toBe(initial);
-		first.setSessionFile("/sessions/fork.jsonl");
-		await first.fire("session_start", { reason: "fork" });
-		expect(first.entries.at(-1).data.contentSessionId).not.toBe(initial);
+		const observationIndex = worker.requests.findIndex((request) =>
+			request.url.includes("/observations"),
+		);
+		const summaryIndex = worker.requests.findIndex((request) =>
+			request.url.includes("/summarize"),
+		);
+		expect(observationIndex).toBeGreaterThan(-1);
+		expect(summaryIndex).toBeGreaterThan(observationIndex);
+		expect(worker.requests[summaryIndex].body).toEqual({
+			contentSessionId: initial,
+			last_assistant_message: "before compact",
+			platformSource: "pi",
+		});
+		expect(harness.entries.at(-1).data.contentSessionId).toBe(initial);
+		expect(harness.entries.at(-1).data.finalized).toBe(false);
+
+		await harness.fire("session_start", { reason: "reload" });
+		expect(harness.entries.at(-1).data.contentSessionId).toBe(initial);
+		harness.setSessionFile("/sessions/fork.jsonl");
+		await harness.fire("session_start", { reason: "fork" });
+		expect(harness.entries.at(-1).data.contentSessionId).not.toBe(initial);
 	});
 
 	it("uses Pi package loading as the only enable control and ignores legacy disabled state", async () => {
@@ -690,6 +811,64 @@ describe("Pi bridge lifecycle", () => {
 		);
 		expect(harness.statuses).toContain("claude-mem: finalization failed");
 	}, 7_000);
+
+	it("attempts shutdown finalization at most once when the summary fails", async () => {
+		const worker = mockWorker({ failSummarize: true });
+		const harness = createHarness(worker.fetchImpl);
+		restore = harness.restore;
+		await harness.fire("session_start", { reason: "startup" });
+		await harness.fire("before_agent_start", { prompt: "ordinary work" });
+
+		await harness.fire("session_shutdown", { reason: "quit" });
+		await harness.fire("session_shutdown", { reason: "quit" });
+
+		expect(
+			worker.requests.filter((request) => request.url.includes("/summarize")),
+		).toHaveLength(1);
+		expect(harness.statuses).toContain("claude-mem: finalization failed");
+	});
+
+	it("never invokes Claude-mem process management from lifecycle paths", async () => {
+		const fixture = mkdtempSync(path.join(tmpdir(), "pi-bridge-no-manage-"));
+		const marker = path.join(fixture, "claude-mem-invoked");
+		const executable = path.join(fixture, "claude-mem");
+		writeFileSync(
+			executable,
+			`#!/bin/sh\nprintf invoked > ${JSON.stringify(marker)}\n`,
+		);
+		chmodSync(executable, 0o755);
+		const originalPath = process.env.PATH;
+		process.env.PATH = `${fixture}:${originalPath ?? ""}`;
+		const worker = mockWorker();
+		const harness = createHarness(worker.fetchImpl);
+		restore = () => {
+			harness.restore();
+			if (originalPath === undefined) delete process.env.PATH;
+			else process.env.PATH = originalPath;
+			rmSync(fixture, { recursive: true, force: true });
+		};
+
+		await harness.fire("session_start", { reason: "startup" });
+		await harness.fire("before_agent_start", { prompt: "ordinary work" });
+		await harness.fire("session_before_compact", {
+			reason: "manual",
+			willRetry: false,
+			branchEntries: [],
+			preparation: {},
+			signal: new AbortController().signal,
+		});
+		await harness.fire("session_shutdown", { reason: "quit" });
+
+		expect(existsSync(marker)).toBe(false);
+		expect(
+			worker.requests.every(
+				(request) =>
+					!request.url.match(
+						/\/(?:admin|worker)\/(?:start|stop|restart|repair)/,
+					),
+			),
+		).toBe(true);
+	});
 
 	it("keeps turns and shutdown non-throwing when the worker refuses connections", async () => {
 		const worker = mockWorker({ fail: true });

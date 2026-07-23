@@ -62,9 +62,14 @@ export class WorkerClient {
     return this.postJson("/api/sessions/init", payload);
   }
 
-  async context(project: string): Promise<WorkerResult<string>> {
-    const query = new URLSearchParams({ projects: project, platformSource: "pi" });
-    return this.requestText(`/api/context/inject?${query.toString()}`, { method: "GET" });
+  async context(projects: readonly string[]): Promise<WorkerResult<string>> {
+    const query = new URLSearchParams({
+      projects: projects.join(","),
+      platformSource: "pi",
+    });
+    return this.requestText(`/api/context/inject?${query.toString()}`, {
+      method: "GET",
+    });
   }
 
   observe(payload: ObservationPayload): Promise<WorkerResult<Record<string, unknown>>> {
