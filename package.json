@@ -1,6 +1,6 @@
 {
   "name": "pi-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Native Pi lifecycle bridge for the claude-mem worker",
   "type": "module",
   "license": "Apache-2.0",
